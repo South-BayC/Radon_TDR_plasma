@@ -1,0 +1,44 @@
+# C++ compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.lib
+*.dylib
+
+# Build directories
+build/
+Debug/
+Release/
+x64/
+x86/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data
+data/
+
+# Cursor IDE
+.cursor/
+
+# Visual Studio
+*.sln
+*.sdf
+*.opensdf
+*.sdf
+TDR_plasma/
+Radon_TDR_plasma/
+
+# Logs
+*.log
