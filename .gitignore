@@ -15,7 +15,7 @@ Release/
 x64/
 x86/
 
-# IDE
+# IDE cache (keep .sln, .vcxproj)
 .vs/
 .vscode/
 .idea/
@@ -26,19 +26,16 @@ x86/
 .DS_Store
 Thumbs.db
 
-# Data
-data/
+# Output data only (keep input for reproducibility)
+data/output/
+data/proceed/
 
-# Cursor IDE
-.cursor/
-
-# Visual Studio
-*.sln
+# Visual Studio intermediate files (keep .sln)
 *.sdf
 *.opensdf
-*.sdf
-TDR_plasma/
-Radon_TDR_plasma/
 
 # Logs
 *.log
+
+# Cursor IDE
+.cursor/
