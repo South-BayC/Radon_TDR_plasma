@@ -45,7 +45,7 @@
 #define SAVE_INTERMEDIATE_RESULTS   true
 #define ENABLE_POINT_CLOUD_GENERATION true
 #define TARGET_COLUMN_INDEX         256
-#define RADIAL_SMOOTH_SIGMA         12.0f
+#define RADIAL_SMOOTH_SIGMA         4.0f
 #define NUM_PROJECTION_ANGLES       180
 
 // --------------------------------------------------

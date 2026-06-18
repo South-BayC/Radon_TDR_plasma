@@ -434,6 +434,40 @@ bool RadonReconstructor::reconstructSingleColumn(const std::string& inputImage, 
 bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, bool saveIntermediate, float smoothSigma) {
     if (!loadProcessedImage(inputImage)) return false;
 
+    // ROI auto-cropping: scan image rows to find the plasma signal range,
+    // crop away pure-background rows to reduce reconstruction artifacts.
+    const int signalThreshold = 10; // pixel values <= this are considered background
+    int rowMin = 0, rowMax = processedImage.rows - 1;
+    for (int r = 0; r < processedImage.rows; ++r) {
+        const uchar* rowPtr = processedImage.ptr<uchar>(r);
+        bool hasSignal = false;
+        for (int c = 0; c < processedImage.cols; ++c) {
+            if (rowPtr[c] > signalThreshold) { hasSignal = true; break; }
+        }
+        if (hasSignal) { rowMin = r; break; }
+    }
+    for (int r = processedImage.rows - 1; r >= 0; --r) {
+        const uchar* rowPtr = processedImage.ptr<uchar>(r);
+        bool hasSignal = false;
+        for (int c = 0; c < processedImage.cols; ++c) {
+            if (rowPtr[c] > signalThreshold) { hasSignal = true; break; }
+        }
+        if (hasSignal) { rowMax = r; break; }
+    }
+    // Add small padding to avoid cutting signal edges
+    rowMin = std::max(0, rowMin - 8);
+    rowMax = std::min(processedImage.rows - 1, rowMax + 8);
+    int cropOffset = rowMin;
+    cv::Rect roi(0, rowMin, processedImage.cols, rowMax - rowMin + 1);
+    if (roi.height < processedImage.rows) {
+        processedImage = processedImage(roi).clone();
+        imageHeight = processedImage.rows;
+        std::cout << "  ROI cropped: rows [" << rowMin << ", " << rowMax
+                  << "], new size: " << imageWidth << "x" << imageHeight << std::endl;
+    } else {
+        cropOffset = 0;
+    }
+
     int numColumns = processedImage.cols;
     std::vector<Point3D> points;
 
@@ -510,7 +544,7 @@ bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, 
                 // x -> globalX (Image Column)
                 // y -> localU
                 // z -> localV
-                Point3D p = {globalX, localU, localV, val};
+                Point3D p = {globalX, localU, localV + static_cast<float>(cropOffset), val};
                 points.push_back(p);
             }
         }
