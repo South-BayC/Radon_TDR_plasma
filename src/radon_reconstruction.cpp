@@ -6,48 +6,18 @@
 #include <iomanip>
 #include <direct.h>
 
-// PCL includes for visualization
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl/visualization/pcl_visualizer.h>
-
-// Thresholds
-#ifndef POINT_CLOUD_THRESHOLD_RATIO
-#define POINT_CLOUD_THRESHOLD_RATIO 0.01f
-#endif
-
-// Real-time visualization using PCL
-static void visualizePointCloudRealtimePCL(
-	const std::vector<Point3D>& points,
-	const std::string& windowTitle) {
-	using CloudT = pcl::PointCloud<pcl::PointXYZI>;
-	CloudT::Ptr cloud(new CloudT());
-	cloud->points.reserve(points.size());
-
-	for (const auto& p : points) {
-		pcl::PointXYZI q;
-		q.x = p.x;
-		q.y = p.y;
-		q.z = p.z;
-		q.intensity = p.intensity;
-		cloud->points.push_back(q);
-	}
-	cloud->width = static_cast<std::uint32_t>(cloud->points.size());
-	cloud->height = 1;
-	cloud->is_dense = false;
-
-	pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(windowTitle));
-	viewer->setBackgroundColor(0.05, 0.05, 0.06);
-	viewer->addPointCloud<pcl::PointXYZI>(cloud, "tdr_cloud");
-	viewer->setPointCloudRenderingProperties(
-		pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, "tdr_cloud");
-	viewer->addCoordinateSystem(50.0);
-	viewer->initCameraParameters();
-
-	std::cout << "PCL visualization window opened (program continues/ends after closing window)." << std::endl;
-	while (!viewer->wasStopped()) {
-		viewer->spinOnce(16);
-	}
+// File-local helper: save matrix as text file
+static bool saveMatTxt(const cv::Mat& mat, const std::string& filePath) {
+    if (mat.empty()) return false;
+    std::ofstream file(filePath);
+    if (!file.is_open()) return false;
+    for (int i = 0; i < mat.rows; i++) {
+        for (int j = 0; j < mat.cols; j++) {
+            file << mat.at<float>(i, j) << (j < mat.cols - 1 ? " " : "");
+        }
+        file << "\n";
+    }
+    return true;
 }
 
 RadonReconstructor::RadonReconstructor()
@@ -110,21 +80,6 @@ bool RadonReconstructor::loadProcessedImage(const std::string& filename) {
     return true;
 }
 
-bool RadonReconstructor::saveMatTxt(const cv::Mat& mat, const std::string& filename) const {
-    if (mat.empty()) return false;
-    std::string fullPath = intermediatePath + filename;
-    std::ofstream file(fullPath);
-    if (!file.is_open()) return false;
-
-    for (int i = 0; i < mat.rows; i++) {
-        for (int j = 0; j < mat.cols; j++) {
-            file << mat.at<float>(i, j) << (j < mat.cols - 1 ? " " : "");
-        }
-        file << "\n";
-    }
-    return true;
-}
-
 cv::Mat RadonReconstructor::filterProjection(const cv::Mat& projection) const {
     int n = projection.rows;
     cv::Mat filtered = cv::Mat::zeros(n, 1, CV_32F);
@@ -165,10 +120,7 @@ cv::Mat RadonReconstructor::filterProjection(const cv::Mat& projection) const {
     return filtered;
 }
 
-#ifndef FFT_BACKPROJECTION_SWITCH
-#define FFT_BACKPROJECTION_SWITCH 0
-#endif
-
+// FFT_BACKPROJECTION_SWITCH is defined in include/config.h
 #if FFT_BACKPROJECTION_SWITCH
 
 static int nextPowerOf2(int n) {
@@ -199,7 +151,7 @@ static cv::Mat createRampFilterFFT(int n) {
     return filter;
 }
 
-cv::Mat RadonReconstructor::filterProjectionFFT(const cv::Mat& projection) const {
+static cv::Mat filterProjectionFFT(const cv::Mat& projection) {
     int n = projection.rows;
     int nf = nextPowerOf2(2 * n);
     
@@ -221,13 +173,13 @@ cv::Mat RadonReconstructor::filterProjectionFFT(const cv::Mat& projection) const
     cv::dft(fftFilter, fftFilter, cv::DFT_COMPLEX_OUTPUT);
     
     cv::Mat fftFiltered;
-    cv::mulSpectrums(fftProj, fftFiltered, fftFiltered, 0);
+    cv::mulSpectrums(fftProj, fftFilter, fftFiltered, 0);
     
     cv::dft(fftFiltered, fftFiltered, cv::DFT_INVERSE | cv::DFT_SCALE);
     
     cv::Mat result;
     cv::split(fftFiltered, planes);
-    result = planes[0](cv::Rect(0, 0, n, 1));
+    result = planes[0](cv::Rect(0, 0, 1, n)).clone();
     
     return result;
 }
@@ -274,7 +226,7 @@ static cv::Mat fftBackprojectSlice(const cv::Mat& filteredProj, int size, int nu
         cv::dft(fftFiltered, fftFiltered, cv::DFT_INVERSE | cv::DFT_SCALE);
         
         cv::split(fftFiltered, planes);
-        cv::Mat filteredLine = planes[0](cv::Rect(0, 0, size, 1));
+        cv::Mat filteredLine = planes[0](cv::Rect(0, 0, 1, size)).clone();
         
         for (int y = 0; y < size; ++y) {
             float yCoord = y - center;
@@ -367,7 +319,8 @@ cv::Mat RadonReconstructor::reconstructRadonFromColumn(int columnIndex, bool sav
     cv::Mat filteredProj = filterProjectionFFT(projFloat);
     
     int size = projFloat.rows;
-    cv::Mat reconstruction = fftBackprojectSlice(filteredProj, size, 180);
+    float center = size / 2.0f;
+    cv::Mat reconstruction = fftBackprojectSlice(filteredProj, size, NUM_PROJECTION_ANGLES);
 #else
     cv::Mat filteredProj = filterProjection(projFloat);
 
@@ -380,7 +333,7 @@ cv::Mat RadonReconstructor::reconstructRadonFromColumn(int columnIndex, bool sav
     int size = projFloat.rows;
     cv::Mat reconstruction = cv::Mat::zeros(size, size, CV_32F);
     float center = size / 2.0f;
-    int numAngles = 180; // Number of projection angles
+    int numAngles = NUM_PROJECTION_ANGLES; // Number of projection angles (from config.h)
 
     // Pre-compute trig tables for speed
     std::vector<float> cosTable(numAngles);
@@ -483,7 +436,6 @@ bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, 
 
     int numColumns = processedImage.cols;
     std::vector<Point3D> points;
-    float globalMaxIntensity = 0.0f;
 
     std::cout << "Starting Radon reconstruction..." << std::endl;
     std::cout << "Assumption: Image X-axis is the axis of rotation (Plasma ejection direction)." << std::endl;
@@ -559,9 +511,7 @@ bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, 
                 // y -> localU
                 // z -> localV
                 Point3D p = {globalX, localU, localV, val};
-                
                 points.push_back(p);
-                if (val > globalMaxIntensity) globalMaxIntensity = val;
             }
         }
     }
@@ -569,26 +519,20 @@ bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, 
 
     if (points.empty()) return false;
 
-    // Save PLY
-    std::string plyPath = outputPath + "radon_reconstruction_points.ply";
-    std::ofstream ofs(plyPath);
-    if (ofs.is_open()) {
-        ofs << "ply\nformat ascii 1.0\nelement vertex " << points.size() << "\nproperty float x\nproperty float y\nproperty float z\nproperty float intensity\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n";
-        
-        float minIntensity = points[0].intensity;
-        for (const auto& p : points) minIntensity = std::min(minIntensity, p.intensity);
-        float intensityRange = globalMaxIntensity - minIntensity;
+    // Export results via PointCloudIO
+    PointCloudIO::savePLY(points, outputPath + "radon_reconstruction_points.ply");
+    PointCloudIO::generateSideView(points, outputPath);
 
-        for (const auto& p : points) {
-            float normalized = (intensityRange > 0) ? (p.intensity - minIntensity) / intensityRange : 0.5f;
-            normalized = std::max(0.0f, std::min(1.0f, normalized));
-            int gray = static_cast<int>(normalized * 255.0f);
-            ofs << p.x << " " << p.y << " " << p.z << " " << p.intensity << " " << gray << " " << gray << " " << gray << "\n";
-        }
-    }
-    
-    generateSideView(points, outputPath);
-    visualizePointCloudRealtimePCL(points, "TDR Plasma 3D Point Cloud (Radon)");
+#if ENABLE_VISUALIZATION
+    std::cout << "[Visualization] Opening PCL 3D viewer..." << std::endl;
+    std::cout << "[Visualization] NOTE: If your desktop icons rearrange after closing the viewer," << std::endl;
+    std::cout << "[Visualization] set ENABLE_VISUALIZATION=0 in include/config.h and use an external" << std::endl;
+    std::cout << "[Visualization] viewer (CloudCompare, MeshLab) to inspect the PLY file." << std::endl;
+    PointCloudIO::visualizePCL(points, "TDR Plasma 3D Point Cloud (Radon)");
+#else
+    std::cout << "[Visualization] PCL viewer is disabled (ENABLE_VISUALIZATION=0)." << std::endl;
+    std::cout << "[Visualization] Point cloud data saved to PLY file. Use an external viewer (e.g., CloudCompare, MeshLab) to inspect." << std::endl;
+#endif
     
     return true;
 }
@@ -596,72 +540,6 @@ bool RadonReconstructor::perform3DReconstruction(const std::string& inputImage, 
 bool RadonReconstructor::saveResults(const std::string& baseName) {
     if (reconstructedImage.empty()) return false;
     return saveMatTxt(reconstructedImage, outputPath + baseName + "_reconstruction.txt");
-}
-
-void RadonReconstructor::generateSideView(const std::vector<Point3D>& points, const std::string& outputPath) const {
-    if (points.empty()) return;
-    
-    float minIntensity = points[0].intensity, maxIntensity = points[0].intensity;
-    for (const auto& p : points) {
-        minIntensity = std::min(minIntensity, p.intensity);
-        maxIntensity = std::max(maxIntensity, p.intensity);
-    }
-    
-    const float theoreticalRadius = 256.0f;
-    const float theoreticalZMin = 0.0f;
-    const float theoreticalZMax = 511.0f;
-    float minX = -theoreticalRadius, maxX = theoreticalRadius;
-    float minZ = theoreticalZMin, maxZ = theoreticalZMax;
-    
-    const int imgSize = 512;
-    // Create XZ projection image (side view only)
-    cv::Mat xzView(imgSize, imgSize, CV_8UC3, cv::Scalar(0, 0, 0)); // XZ plane (side view)
-
-    float intensityRange = maxIntensity - minIntensity;
-    if (intensityRange <= 0.0f) intensityRange = 1.0f;
-
-    // Project points to XZ view only
-    for (const auto& p : points) {
-        // Normalize intensity for grayscale mapping
-        float normalized = (p.intensity - minIntensity) / intensityRange;
-        normalized = std::max(0.0f, std::min(1.0f, normalized));
-
-        // Grayscale mapping: low intensity = dark, high intensity = bright
-        int grayValue = static_cast<int>(normalized * 255.0f);
-        grayValue = std::max(0, std::min(255, grayValue));
-
-        cv::Vec3b color(grayValue, grayValue, grayValue); // RGB all same for grayscale
-
-        // XZ projection (side view: x, z)
-        {
-            // Note: p.x is global X (ejection axis), p.z is global Z (vertical in cross-section)
-            // We want to map global X to image X (horizontal), and global Z to image Y (vertical)
-            
-            // Map p.x (0 to numColumns) to image X (0 to imgSize)
-            // minX/maxX here were set to theoreticalRadius (-256, 256), but p.x is actually positive (0 to 512).
-            // Let's adjust the mapping logic for X.
-            
-            float normX = p.x / theoreticalZMax; // Assuming p.x goes from 0 to 511
-            int x_pixel = static_cast<int>(normX * (imgSize - 1));
-            
-            // Map p.z (-256 to 256) to image Y (0 to imgSize)
-            // In image coordinates, Y is top-down. We want +Z to be up.
-            // So pixel Y = (maxZ - z) / range * height
-            
-            // Re-use minZ/maxZ variables but interpret them as vertical range (-256, 256)
-            float vMin = -theoreticalRadius;
-            float vMax = theoreticalRadius;
-            
-            int z_pixel = static_cast<int>((vMax - p.z) / (vMax - vMin) * (imgSize - 1));
-
-            if (x_pixel >= 0 && x_pixel < imgSize && z_pixel >= 0 && z_pixel < imgSize) {
-                xzView.at<cv::Vec3b>(z_pixel, x_pixel) = color;
-            }
-        }
-    }
-    
-    cv::imwrite(outputPath + "point_cloud_side_view.png", xzView);
-    std::cout << "Side view saved: " << outputPath + "point_cloud_side_view.png" << std::endl;
 }
 
 void RadonReconstructor::setFilterType(int type) {

@@ -5,26 +5,7 @@
 #include <direct.h>   // for _mkdir
 #include <fstream>
 
-// Use default values if macros are not defined
-#ifndef TARGET_IMAGE_SIZE
-#define TARGET_IMAGE_SIZE 512
-#endif
-
-#ifndef MEDIAN_FILTER_KERNEL_SIZE
-#define MEDIAN_FILTER_KERNEL_SIZE 3
-#endif
-#ifndef MASK_THRESHOLD
-#define MASK_THRESHOLD 0.1
-#endif
-
-// New feature parameters (from main.cpp)
-#ifndef ENABLE_MEAN_FILTERING
-#define ENABLE_MEAN_FILTERING true
-#endif
-
-#ifndef MEAN_FILTER_KERNEL_SIZE
-#define MEAN_FILTER_KERNEL_SIZE 8
-#endif
+// Config macros are now provided centrally via include/config.h
 
 
 // Check if directory exists
@@ -297,13 +278,4 @@ void ImagePreprocessor::setTargetSize(int size) {
 		std::cerr << "Warning: Invalid target size. Using default " << TARGET_IMAGE_SIZE << "." << std::endl;
 		targetSize = TARGET_IMAGE_SIZE;
 	}
-}
-
-// Placeholder functions
-cv::Mat ImagePreprocessor::getProcessedImage() const {
-	return cv::Mat();
-}
-
-cv::Mat ImagePreprocessor::getMask() const {
-	return cv::Mat();
 }

@@ -149,13 +149,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\config.h" />
+    <ClInclude Include="..\include\point_cloud_io.h" />
     <ClInclude Include="..\include\radon_reconstruction.h" />
     <ClInclude Include="..\include\preprocess.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\src\radon_reconstruction.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\point_cloud_io.cpp" />
     <ClCompile Include="..\src\preprocess.cpp" />
+    <ClCompile Include="..\src\radon_reconstruction.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

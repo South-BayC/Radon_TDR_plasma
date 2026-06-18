@@ -16,6 +16,12 @@
     <ClInclude Include="..\include\preprocess.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\include\config.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\include\point_cloud_io.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\radon_reconstruction.cpp">
@@ -25,6 +31,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\point_cloud_io.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="ClassDiagram.cd" />

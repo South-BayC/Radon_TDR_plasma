@@ -30,6 +30,9 @@ Thumbs.db
 data/output/
 data/proceed/
 
+# Analysis results (generated, not source)
+data/analysis/
+
 # Visual Studio intermediate files (keep .sln)
 *.sdf
 *.opensdf

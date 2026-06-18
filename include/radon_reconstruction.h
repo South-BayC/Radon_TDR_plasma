@@ -1,16 +1,11 @@
 #ifndef RADON_RECONSTRUCTION_H
 #define RADON_RECONSTRUCTION_H
 
+#include "config.h"
+#include "point_cloud_io.h"
 #include <opencv2/opencv.hpp>
 #include <vector>
 #include <string>
-
-struct Point3D {
-    float x;
-    float y;
-    float z;
-    float intensity;
-};
 
 class RadonReconstructor {
 private:
@@ -34,13 +29,9 @@ private:
     float radialMaskFactor;
     int edgeTaperPixels;
 
-    bool saveMatTxt(const cv::Mat& mat, const std::string& filename) const;
-
     cv::Mat filterProjection(const cv::Mat& projection) const;
 
     cv::Mat reconstructRadonFromColumn(int columnIndex, bool saveIntermediate = false, float smoothSigma = 2.0f) const;
-
-    void generateSideView(const std::vector<Point3D>& points, const std::string& outputPath) const;
 
 public:
     RadonReconstructor();

@@ -1,6 +1,7 @@
 ﻿#ifndef PREPROCESS_H
 #define PREPROCESS_H
 
+#include "config.h"
 #include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
@@ -11,6 +12,9 @@ private:
 	std::string inputPath;
 	std::string outputPath;
 	int targetSize;
+
+	// Ensure path ends with a trailing separator
+	static std::string ensureTrailingSeparator(const std::string& path);
 
 public:
 	// Constructors
@@ -29,10 +33,6 @@ public:
 	cv::Mat resizeAndPad(const cv::Mat& input);
 	cv::Mat applyMedianFilter(const cv::Mat& input, int kernelSize);
 	cv::Mat createMask(const cv::Mat& input, double threshold);
-
-	// Getters
-	cv::Mat getProcessedImage() const;
-	cv::Mat getMask() const;
 
 	// Setters
 	void setTargetSize(int size);
